@@ -1,3 +1,5 @@
+/*-----INCLUDES-----------------------------------------------*/
+
 #include <errno.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -5,7 +7,15 @@
 #include <termios.h>
 #include <unistd.h>
 
+/*-----DEFINES------------------------------------------------*/
+
+#define CTRL(k) ((k) & 0x1F)
+
+/*-----DATA---------------------------------------------------*/
+
 struct termios og_termios;
+
+/*-----TERMINAL-----------------------------------------------*/
 
 void die(const char* s){
   perror(s);
@@ -36,6 +46,7 @@ void enable_raw_mode(){
     die("tcsetattr - enable_raw_mode");
 }
 
+/*-----INIT---------------------------------------------------*/
 
 int main() {
 
@@ -43,17 +54,18 @@ int main() {
   char c;
 
   while (1) {
+
     c = '\0';
     if (read(STDIN_FILENO, &c, 1) == -1 && \
         errno != EAGAIN)
           die("read");
 
+    if (c == CTRL('q')) break;
+
     if (iscntrl(c)) 
       printf("%4d\r\n", c);
     else
       printf("%4d ('%c')\r\n", c, c);
-
-    if (c == 'q') break;
   }    
 
   return 0;
