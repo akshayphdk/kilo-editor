@@ -18,6 +18,8 @@ struct termios og_termios;
 /*-----TERMINAL-----------------------------------------------*/
 
 void die(const char* s){
+  write(STDOUT_FILENO, "\x1B[2J", 4);
+  write(STDOUT_FILENO, "\x1B[H", 3);
   perror(s);
   exit(1);
 }
@@ -63,6 +65,8 @@ void editor_process_keypress(){
   char c = editor_read_key();
   switch(c) {
     case CTRL('q'):
+      write(STDOUT_FILENO, "\x1B[2J", 4);
+      write(STDOUT_FILENO, "\x1B[H", 3);
       exit(0);
   }
 }
