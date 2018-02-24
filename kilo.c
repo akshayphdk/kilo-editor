@@ -67,6 +67,12 @@ void editor_process_keypress(){
   }
 }
 
+/*-----OUTPUT-------------------------------------------------*/
+
+void editor_refresh_screen(){
+  write(STDOUT_FILENO, "\x1B[2J", 4);
+}
+
 /*-----INIT---------------------------------------------------*/
 
 int main() {
@@ -75,6 +81,7 @@ int main() {
   char c;
 
   while (1) {
+    editor_refresh_screen();
     editor_process_keypress();
   }    
 
