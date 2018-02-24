@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,12 +7,20 @@
 
 struct termios og_termios;
 
+void die(const char* s){
+  perror(s);
+  exit(1);
+}
+
 void disable_raw_mode(){
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &og_termios);
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &og_termios) == -1)
+    die("tcsetattr - disable_raw_mode");
 }
 
 void enable_raw_mode(){
-  tcgetattr(STDIN_FILENO, &og_termios);
+  if (tcgetattr(STDIN_FILENO, &og_termios) == -1)
+    die("tcgetattr - enable_raw_mode");
+
   atexit(disable_raw_mode);
 
   struct termios raw = og_termios;
@@ -23,7 +32,8 @@ void enable_raw_mode(){
   raw.c_cc[VMIN] = 0;
   raw.c_cc[VTIME] = 1;
 
-  tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1)
+    die("tcsetattr - enable_raw_mode");
 }
 
 
@@ -34,7 +44,9 @@ int main() {
 
   while (1) {
     c = '\0';
-    read(STDIN_FILENO, &c, 1);
+    if (read(STDIN_FILENO, &c, 1) == -1 && \
+        errno != EAGAIN)
+          die("read");
 
     if (iscntrl(c)) 
       printf("%4d\r\n", c);
