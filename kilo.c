@@ -71,6 +71,7 @@ void editor_process_keypress(){
 
 void editor_refresh_screen(){
   write(STDOUT_FILENO, "\x1B[2J", 4);
+  write(STDOUT_FILENO, "\x1B[H", 3);
 }
 
 /*-----INIT---------------------------------------------------*/
