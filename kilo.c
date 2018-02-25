@@ -140,6 +140,7 @@ void editor_process_keypress(){
 void editor_draw_rows(struct abuf* ab){
   for(int y=0; y<CONF.screen_rows; y++){
     abuf_append(ab, "~", 1);
+    abuf_append(ab, "\x1B[K", 3);
     if (y<CONF.screen_rows-1){
       abuf_append(ab, "\r\n", 2);
     }
@@ -150,7 +151,6 @@ void editor_refresh_screen(){
   struct abuf ab = ABUF_INIT;
  
   abuf_append(&ab, "\x1B[?25l", 6); 
-  abuf_append(&ab, "\x1B[2J", 4);
   abuf_append(&ab, "\x1B[H", 3);
 
   editor_draw_rows(&ab);
