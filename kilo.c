@@ -148,12 +148,14 @@ void editor_draw_rows(struct abuf* ab){
 
 void editor_refresh_screen(){
   struct abuf ab = ABUF_INIT;
-  
+ 
+  abuf_append(&ab, "\x1B[?25l", 6); 
   abuf_append(&ab, "\x1B[2J", 4);
   abuf_append(&ab, "\x1B[H", 3);
 
   editor_draw_rows(&ab);
   abuf_append(&ab, "\x1B[H", 3);
+  abuf_append(&ab, "\x1B[?25h", 6);
 
   write(STDOUT_FILENO, ab.b, ab.len);
   abuf_free(&ab);
