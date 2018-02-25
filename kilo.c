@@ -11,6 +11,7 @@
 
 /*-----DEFINES------------------------------------------------*/
 
+#define KILO_VERSION "0.0.1"
 #define CTRL_KEY(k) ((k) & 0x1F)
 
 /*-----DATA---------------------------------------------------*/
@@ -139,7 +140,29 @@ void editor_process_keypress(){
 
 void editor_draw_rows(struct abuf* ab){
   for(int y=0; y<CONF.screen_rows; y++){
-    abuf_append(ab, "~", 1);
+
+    if (y == CONF.screen_rows/2) {
+
+      char* msg = malloc(CONF.screen_cols);
+      char* pref = "Kilo editor - Version ";
+
+      int pref_len = strlen(pref);
+      int ver_len = strlen(KILO_VERSION);
+      int pad = (CONF.screen_cols+pref_len-(ver_len+1))/2;
+
+      int msg_len = \
+      snprintf(msg,CONF.screen_cols,"~%*s%s",pad,pref,KILO_VERSION);
+       
+      if (msg_len > CONF.screen_cols)
+        msg_len = CONF.screen_cols;
+
+      abuf_append(ab, msg, msg_len);
+      free(msg);
+    }
+
+    else
+      abuf_append(ab, "~", 1);
+
     abuf_append(ab, "\x1B[K", 3);
     if (y<CONF.screen_rows-1){
       abuf_append(ab, "\r\n", 2);
