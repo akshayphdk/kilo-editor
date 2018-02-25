@@ -16,7 +16,16 @@
 
 /*-----DATA---------------------------------------------------*/
 
+enum editor_keys {
+  ARROW_LEFT = 1000,
+  ARROW_RIGHT,
+  ARROW_UP,
+  ARROW_DOWN
+};
+
 struct editor_config {
+  int cx;
+  int cy;
   int screen_rows;
   int screen_cols;
   struct termios og_termios;
@@ -78,7 +87,7 @@ void enable_raw_mode(){
     die("tcsetattr - enable_raw_mode");
 }
 
-char editor_read_key(){
+int editor_read_key(){
   int nread;
   char c;
   while ((nread = read(STDIN_FILENO, &c, 1)) != 1){
@@ -86,7 +95,26 @@ char editor_read_key(){
       die("read");
     }
   }
-  return c;
+
+  if (c == '\x1B') {
+    char seq[3];
+
+    if (read(STDIN_FILENO, &seq[0], 1) != 1) return '\x1B';
+    if (read(STDIN_FILENO, &seq[1], 1) != 1) return '\x1B';
+
+    if (seq[0] == '[') {
+      switch(seq[1]){
+        case 'A': return ARROW_UP;
+        case 'B': return ARROW_DOWN;
+        case 'C': return ARROW_RIGHT;
+        case 'D': return ARROW_LEFT;
+      }
+    }
+
+    return '\x1B';
+  }
+  else
+    return c;
 }
 
 int get_cursor_position(int* rows, int* cols) {
@@ -126,13 +154,41 @@ int get_window_size(int* rows, int* cols){
 
 /*-----INPUT--------------------------------------------------*/
 
+void editor_move_cursor(int key){
+  switch(key) {
+    case ARROW_LEFT:
+      if (CONF.cx != 0)
+        CONF.cx--;
+      break;
+    case ARROW_RIGHT:
+      if (CONF.cx != CONF.screen_cols-1)
+        CONF.cx++;
+      break;
+    case ARROW_UP:
+      if (CONF.cy != 0)
+        CONF.cy--;
+      break;
+    case ARROW_DOWN:
+      if (CONF.cy != CONF.screen_rows-1)
+        CONF.cy++;
+      break;
+  }
+}
+
 void editor_process_keypress(){
-  char c = editor_read_key();
+  int c = editor_read_key();
   switch(c) {
     case CTRL_KEY('q'):
       write(STDOUT_FILENO, "\x1B[2J", 4);
       write(STDOUT_FILENO, "\x1B[H", 3);
       exit(0);
+      break;
+    case ARROW_UP:
+    case ARROW_LEFT:
+    case ARROW_DOWN:
+    case ARROW_RIGHT:
+      editor_move_cursor(c);
+      break;  
   }
 }
 
@@ -143,21 +199,19 @@ void editor_draw_rows(struct abuf* ab){
 
     if (y == CONF.screen_rows/2) {
 
-      char* msg = malloc(CONF.screen_cols);
-      char* pref = "Kilo editor - Version ";
-
-      int pref_len = strlen(pref);
-      int ver_len = strlen(KILO_VERSION);
-      int pad = (CONF.screen_cols+pref_len-(ver_len+1))/2;
-
-      int msg_len = \
-      snprintf(msg,CONF.screen_cols,"~%*s%s",pad,pref,KILO_VERSION);
-       
-      if (msg_len > CONF.screen_cols)
-        msg_len = CONF.screen_cols;
-
-      abuf_append(ab, msg, msg_len);
-      free(msg);
+      char welcome[80];
+      int welcomelen = snprintf(welcome, sizeof(welcome),
+        "Kilo editor -- version %s", KILO_VERSION);
+      if (welcomelen > CONF.screen_cols) 
+        welcomelen = CONF.screen_cols;
+      int padding = (CONF.screen_cols - welcomelen)/2;
+      if (padding) {
+        abuf_append(ab, "~", 1);
+        padding--;
+      }
+      while (padding--) 
+        abuf_append(ab, " ", 1);
+      abuf_append(ab, welcome, welcomelen);
     }
 
     else
@@ -177,7 +231,11 @@ void editor_refresh_screen(){
   abuf_append(&ab, "\x1B[H", 3);
 
   editor_draw_rows(&ab);
-  abuf_append(&ab, "\x1B[H", 3);
+
+  char buf[32];
+  snprintf(buf, sizeof(buf), "\x1B[%d;%dH", CONF.cy+1, CONF.cx+1);
+  abuf_append(&ab, buf, strlen(buf));
+
   abuf_append(&ab, "\x1B[?25h", 6);
 
   write(STDOUT_FILENO, ab.b, ab.len);
@@ -187,6 +245,8 @@ void editor_refresh_screen(){
 /*-----INIT---------------------------------------------------*/
 
 void init_editor(){
+  CONF.cx = 0;
+  CONF.cy = 0;
   if (get_window_size(&CONF.screen_rows,&CONF.screen_cols) == -1)
     die("get_window_size");
 }
