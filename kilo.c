@@ -40,6 +40,7 @@ struct editor_config {
   int cx;
   int cy;
   int row_offset;
+  int col_offset;
   int screen_rows;
   int screen_cols;
   int num_rows;
@@ -179,8 +180,7 @@ int get_cursor_position(int* rows, int* cols) {
 
 int get_window_size(int* rows, int* cols){
   struct winsize ws;
-  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || \
-      ws.ws_col == 0) {
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
     if (write(STDOUT_FILENO, "\x1B[999C\x1B[999B", 12) != 12)
       { return -1;}
     return get_cursor_position(rows, cols);
@@ -236,7 +236,6 @@ void editor_move_cursor(int key){
         CONF.cx--;
       break;
     case ARROW_RIGHT:
-      if (CONF.cx != CONF.screen_cols-1)
         CONF.cx++;
       break;
     case ARROW_UP:
@@ -294,6 +293,12 @@ void editor_scroll() {
   if (CONF.cy >= CONF.row_offset+CONF.screen_rows){
     CONF.row_offset = CONF.cy-CONF.screen_rows+1;
   }
+  if (CONF.cx < CONF.col_offset) {
+    CONF.col_offset = CONF.cx;
+  }
+  if (CONF.cx >= CONF.col_offset+CONF.screen_cols){
+    CONF.col_offset = CONF.cx-CONF.screen_cols+1;
+  }
 }
 
 void editor_draw_rows(struct abuf* ab){
@@ -321,10 +326,10 @@ void editor_draw_rows(struct abuf* ab){
         abuf_append(ab, "~", 1);
     }
     else {
-      int len = CONF.row[filerow].size;
-      if (len > CONF.screen_cols) 
-        len = CONF.screen_cols;
-      abuf_append(ab, CONF.row[filerow].chars, len);
+      int len = CONF.row[filerow].size-CONF.col_offset;
+      if (len < 0) len = 0;
+      if (len > CONF.screen_cols) len = CONF.screen_cols;
+      abuf_append(ab, &CONF.row[filerow].chars[CONF.col_offset], len);
     }
 
     abuf_append(ab, "\x1B[K", 3);
@@ -346,7 +351,8 @@ void editor_refresh_screen(){
   editor_draw_rows(&ab);
 
   char buf[32];
-  snprintf(buf, sizeof(buf), "\x1B[%d;%dH", CONF.cy-CONF.row_offset+1, CONF.cx+1);
+  snprintf(buf, sizeof(buf), "\x1B[%d;%dH", 
+           CONF.cy-CONF.row_offset+1, CONF.cx-CONF.col_offset+1);
   abuf_append(&ab, buf, strlen(buf));
 
   abuf_append(&ab, "\x1B[?25h", 6);
@@ -361,6 +367,7 @@ void init_editor(){
   CONF.cx = 0;
   CONF.cy = 0;
   CONF.row_offset = 0;
+  CONF.col_offset = 0;
   CONF.num_rows = 0;
   CONF.row = NULL;
   if (get_window_size(&CONF.screen_rows,&CONF.screen_cols) == -1)
