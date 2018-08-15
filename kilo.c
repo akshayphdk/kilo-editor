@@ -39,6 +39,7 @@ typedef struct erow {
 struct editor_config {
   int cx;
   int cy;
+  int row_offset;
   int screen_rows;
   int screen_cols;
   int num_rows;
@@ -243,7 +244,7 @@ void editor_move_cursor(int key){
         CONF.cy--;
       break;
     case ARROW_DOWN:
-      if (CONF.cy != CONF.screen_rows-1)
+      if (CONF.cy < CONF.num_rows)
         CONF.cy++;
       break;
   }
@@ -286,9 +287,19 @@ void editor_process_keypress(){
 
 /*-----OUTPUT-------------------------------------------------*/
 
+void editor_scroll() {
+  if (CONF.cy < CONF.row_offset) {
+    CONF.row_offset = CONF.cy;
+  }
+  if (CONF.cy >= CONF.row_offset+CONF.screen_rows){
+    CONF.row_offset = CONF.cy-CONF.screen_rows+1;
+  }
+}
+
 void editor_draw_rows(struct abuf* ab){
   for(int y=0; y<CONF.screen_rows; y++){
-    if (y >= CONF.num_rows) {
+    int filerow = y + CONF.row_offset;
+    if (filerow >= CONF.num_rows) {
       if (CONF.num_rows == 0 && y == CONF.screen_rows/2) {
 
         char welcome[80];
@@ -310,10 +321,10 @@ void editor_draw_rows(struct abuf* ab){
         abuf_append(ab, "~", 1);
     }
     else {
-      int len = CONF.row[y].size;
+      int len = CONF.row[filerow].size;
       if (len > CONF.screen_cols) 
         len = CONF.screen_cols;
-      abuf_append(ab, CONF.row[y].chars, len);
+      abuf_append(ab, CONF.row[filerow].chars, len);
     }
 
     abuf_append(ab, "\x1B[K", 3);
@@ -324,6 +335,9 @@ void editor_draw_rows(struct abuf* ab){
 }
 
 void editor_refresh_screen(){
+
+  editor_scroll();
+
   struct abuf ab = ABUF_INIT;
  
   abuf_append(&ab, "\x1B[?25l", 6); 
@@ -332,7 +346,7 @@ void editor_refresh_screen(){
   editor_draw_rows(&ab);
 
   char buf[32];
-  snprintf(buf, sizeof(buf), "\x1B[%d;%dH", CONF.cy+1, CONF.cx+1);
+  snprintf(buf, sizeof(buf), "\x1B[%d;%dH", CONF.cy-CONF.row_offset+1, CONF.cx+1);
   abuf_append(&ab, buf, strlen(buf));
 
   abuf_append(&ab, "\x1B[?25h", 6);
@@ -346,6 +360,7 @@ void editor_refresh_screen(){
 void init_editor(){
   CONF.cx = 0;
   CONF.cy = 0;
+  CONF.row_offset = 0;
   CONF.num_rows = 0;
   CONF.row = NULL;
   if (get_window_size(&CONF.screen_rows,&CONF.screen_cols) == -1)
