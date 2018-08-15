@@ -245,6 +245,10 @@ void editor_move_cursor(int key){
     case ARROW_RIGHT:
       if (row && CONF.cx < row->size)
         CONF.cx++;
+      else if (row && CONF.cx == row->size) {
+        CONF.cy++;
+        CONF.cx = 0;
+      }
       break;
     case ARROW_UP:
       if (CONF.cy != 0)
