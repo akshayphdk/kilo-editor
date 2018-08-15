@@ -230,12 +230,16 @@ void editor_open(char *filename) {
 /*-----INPUT--------------------------------------------------*/
 
 void editor_move_cursor(int key){
+
+  erow *row = (CONF.cy >= CONF.num_rows)?NULL:&CONF.row[CONF.cy];
+
   switch(key) {
     case ARROW_LEFT:
       if (CONF.cx != 0)
         CONF.cx--;
       break;
     case ARROW_RIGHT:
+      if (row && CONF.cx < row->size)
         CONF.cx++;
       break;
     case ARROW_UP:
@@ -247,6 +251,13 @@ void editor_move_cursor(int key){
         CONF.cy++;
       break;
   }
+
+  row = (CONF.cy >= CONF.num_rows)?NULL:&CONF.row[CONF.cy];
+  int row_len = row?row->size:0;
+  if (CONF.cx > row_len) {
+    CONF.cx = row_len;
+  }
+
 }
 
 void editor_process_keypress(){
