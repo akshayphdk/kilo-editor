@@ -331,6 +331,11 @@ void editor_process_keypress(){
     case PAGE_UP:
     case PAGE_DOWN:
       {
+        if (c == PAGE_UP) CONF.cy = CONF.row_offset;
+        else if (c == PAGE_DOWN) {
+          CONF.cy  = CONF.row_offset+CONF.screen_rows-1;
+          if (CONF.cy > CONF.num_rows) CONF.cy = CONF.num_rows;
+        }
         int times = CONF.screen_rows;
         while(times--)
           editor_move_cursor(c == PAGE_UP?ARROW_UP:ARROW_DOWN);  
