@@ -325,7 +325,8 @@ void editor_process_keypress(){
       break;
 
     case END_KEY:
-      CONF.cx = CONF.screen_cols-1;
+      if (CONF.cy < CONF.num_rows)
+        CONF.cx = CONF.row[CONF.cy].size;
       break;
 
     case PAGE_UP:
