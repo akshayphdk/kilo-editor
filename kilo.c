@@ -4,6 +4,7 @@
 #define _DEFAULT_SOURCE
 #define _BSD_SOURCE
 #define KILO_VERSION "0.0.1"
+#define KILO_TAB_STOP 8
 #define CTRL_KEY(k) ((k) & 0x1F)
 
 /*-----INCLUDES-----------------------------------------------*/
@@ -33,12 +34,15 @@ enum editor_keys {
 
 typedef struct erow {
   int size;
+  int rsize;
   char *chars;
+  char *render;
 } erow;
 
 struct editor_config {
   int cx;
   int cy;
+  int rx;
   int row_offset;
   int col_offset;
   int screen_rows;
@@ -194,6 +198,40 @@ int get_window_size(int* rows, int* cols){
 
 /*-----ROW OPERATIONS-----------------------------------------*/
 
+int editor_row_cx_to_rx(erow *row, int cx) {
+  int rx = 0;
+  for (int j=0; j<cx; j++) {
+    if (row->chars[j] == '\t')
+      rx += (KILO_TAB_STOP-1)-(rx%KILO_TAB_STOP);
+    rx++;
+  }
+  return rx;
+}
+
+void editor_update_row(erow *row){
+
+  int tabs = 0;
+  int j;
+  for (j=0; j<row->size; j++)
+    if (row->chars[j] == '\t') tabs++;
+
+  free(row->render);
+  row->render = malloc(row->size+(tabs*(KILO_TAB_STOP-1))+1);
+
+  int idx = 0;
+  for (j=0; j<row->size; j++) {
+    if (row->chars[j] == '\t') {
+      row->render[idx++] = ' ';
+      while (idx%KILO_TAB_STOP != 0) row->render[idx++] = ' ';
+    }
+    else {
+      row->render[idx++] = row->chars[j];
+    }
+  }
+  row->render[idx] = '\0';
+  row->rsize = idx;
+}
+
 void editor_append_row(char *s, size_t len) {
 
   CONF.row = realloc(CONF.row, sizeof(erow)*(CONF.num_rows+1));
@@ -203,6 +241,11 @@ void editor_append_row(char *s, size_t len) {
   CONF.row[at].chars = malloc(len+1);
   memcpy(CONF.row[at].chars, s, len);
   CONF.row[at].chars[len] = '\0';
+
+  CONF.row[at].rsize = 0;
+  CONF.row[at].render = NULL;
+  editor_update_row(&CONF.row[at]);
+
   CONF.num_rows++;
 }
 
@@ -306,17 +349,23 @@ void editor_process_keypress(){
 /*-----OUTPUT-------------------------------------------------*/
 
 void editor_scroll() {
+
+  CONF.rx = CONF.cx;
+
+  if (CONF.cy < CONF.num_rows) {
+    CONF.rx = editor_row_cx_to_rx(&CONF.row[CONF.cy], CONF.cx);
+  }
   if (CONF.cy < CONF.row_offset) {
     CONF.row_offset = CONF.cy;
   }
   if (CONF.cy >= CONF.row_offset+CONF.screen_rows){
     CONF.row_offset = CONF.cy-CONF.screen_rows+1;
   }
-  if (CONF.cx < CONF.col_offset) {
-    CONF.col_offset = CONF.cx;
+  if (CONF.rx < CONF.col_offset) {
+    CONF.col_offset = CONF.rx;
   }
-  if (CONF.cx >= CONF.col_offset+CONF.screen_cols){
-    CONF.col_offset = CONF.cx-CONF.screen_cols+1;
+  if (CONF.rx >= CONF.col_offset+CONF.screen_cols){
+    CONF.col_offset = CONF.rx-CONF.screen_cols+1;
   }
 }
 
@@ -345,10 +394,10 @@ void editor_draw_rows(struct abuf* ab){
         abuf_append(ab, "~", 1);
     }
     else {
-      int len = CONF.row[filerow].size-CONF.col_offset;
+      int len = CONF.row[filerow].rsize-CONF.col_offset;
       if (len < 0) len = 0;
       if (len > CONF.screen_cols) len = CONF.screen_cols;
-      abuf_append(ab, &CONF.row[filerow].chars[CONF.col_offset], len);
+      abuf_append(ab, &CONF.row[filerow].render[CONF.col_offset], len);
     }
 
     abuf_append(ab, "\x1B[K", 3);
@@ -371,7 +420,7 @@ void editor_refresh_screen(){
 
   char buf[32];
   snprintf(buf, sizeof(buf), "\x1B[%d;%dH", 
-           CONF.cy-CONF.row_offset+1, CONF.cx-CONF.col_offset+1);
+           CONF.cy-CONF.row_offset+1, CONF.rx-CONF.col_offset+1);
   abuf_append(&ab, buf, strlen(buf));
 
   abuf_append(&ab, "\x1B[?25h", 6);
@@ -385,6 +434,7 @@ void editor_refresh_screen(){
 void init_editor(){
   CONF.cx = 0;
   CONF.cy = 0;
+  CONF.rx = 0;
   CONF.row_offset = 0;
   CONF.col_offset = 0;
   CONF.num_rows = 0;
