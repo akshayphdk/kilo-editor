@@ -56,6 +56,7 @@ struct editor_config {
   char *filename;
   char statusmsg[80];
   time_t statusmsg_time;
+  int dirty;
   struct termios og_termios;
 };
 
@@ -258,6 +259,7 @@ void editor_append_row(char *s, size_t len) {
   editor_update_row(&CONF.row[at]);
 
   CONF.num_rows++;
+  CONF.dirty++;
 }
 
 void editor_row_insert_char(erow *row, int at, int c) {
@@ -268,6 +270,7 @@ void editor_row_insert_char(erow *row, int at, int c) {
   row->size++;
   row->chars[at] = c;
   editor_update_row(row);
+  CONF.dirty++;
 }
 
 /*-----EDITOR OPERATIONS--------------------------------------*/
@@ -321,6 +324,7 @@ void editor_open(char *filename) {
   }
   free(line);
   fclose(fp);
+  CONF.dirty = 0;
 }
 
 void editor_save() {
@@ -334,6 +338,7 @@ void editor_save() {
       if (write(fd, buf, len) == len) {
         close(fd);
         free(buf);
+        CONF.dirty = 0;
         editor_set_statusmsg("%d bytes written to disk", len);
         return;
       }
@@ -513,8 +518,9 @@ void editor_draw_statusbar(struct abuf *ab) {
   abuf_append(ab, "\x1B[7m", 4);
   char status[80], rstatus[80];
 
-  int len = snprintf(status, sizeof(status), "%.20s - %d lines",
-                     CONF.filename?CONF.filename:"[New File]", CONF.num_rows);
+  int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
+                     CONF.filename?CONF.filename:"[New File]", CONF.num_rows,
+                     CONF.dirty?"(modified)":"");
   int rlen = snprintf(rstatus, sizeof(rstatus), "%d,%d", CONF.cy+1,CONF.cx+1);
 
   if (len > CONF.screen_cols)
@@ -589,6 +595,7 @@ void init_editor(){
   CONF.filename = NULL;
   CONF.statusmsg[0] = '\0';
   CONF.statusmsg_time = 0;
+  CONF.dirty = 0;
   if (get_window_size(&CONF.screen_rows,&CONF.screen_cols) == -1)
     die("get_window_size");
   CONF.screen_rows -= 2;
