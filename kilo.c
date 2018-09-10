@@ -17,6 +17,8 @@
 #include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
+#include <time.h>
+#include <stdarg.h>
 
 /*-----DATA---------------------------------------------------*/
 
@@ -50,6 +52,8 @@ struct editor_config {
   int num_rows;
   erow *row;
   char *filename;
+  char statusmsg[80];
+  time_t statusmsg_time;
   struct termios og_termios;
 };
 
@@ -439,6 +443,16 @@ void editor_draw_statusbar(struct abuf *ab) {
     }
   }
   abuf_append(ab, "\x1B[m", 3);
+  abuf_append(ab, "\r\n", 2);
+}
+
+void editor_draw_msgbar(struct abuf *ab) {
+  abuf_append(ab, "\x1B[K", 3);
+  int msglen = strlen(CONF.statusmsg);
+  if (msglen > CONF.screen_cols)
+    msglen = CONF.screen_cols;
+  if (msglen && time(NULL) - CONF.statusmsg_time < 5)
+    abuf_append(ab, CONF.statusmsg, msglen);
 }
 
 void editor_refresh_screen(){
@@ -452,6 +466,7 @@ void editor_refresh_screen(){
 
   editor_draw_rows(&ab);
   editor_draw_statusbar(&ab);
+  editor_draw_msgbar(&ab);
 
   char buf[32];
   snprintf(buf, sizeof(buf), "\x1B[%d;%dH", 
@@ -462,6 +477,14 @@ void editor_refresh_screen(){
 
   write(STDOUT_FILENO, ab.b, ab.len);
   abuf_free(&ab);
+}
+
+void editor_set_statusmsg(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(CONF.statusmsg, sizeof(CONF.statusmsg), fmt, ap);
+  va_end(ap);
+  CONF.statusmsg_time = time(NULL);
 }
 
 /*-----INIT---------------------------------------------------*/
@@ -475,10 +498,11 @@ void init_editor(){
   CONF.num_rows = 0;
   CONF.row = NULL;
   CONF.filename = NULL;
-
+  CONF.statusmsg[0] = '\0';
+  CONF.statusmsg_time = 0;
   if (get_window_size(&CONF.screen_rows,&CONF.screen_cols) == -1)
     die("get_window_size");
-  CONF.screen_rows -= 1;
+  CONF.screen_rows -= 2;
 }
 
 int main(int argc, char *argv[]) {
@@ -488,6 +512,9 @@ int main(int argc, char *argv[]) {
   if (argc >= 2) {
     editor_open(argv[1]);
   }
+
+  editor_set_statusmsg("HELP: Ctrl-Q = Quit");
+
   while (1) {
     editor_refresh_screen();
     editor_process_keypress();
