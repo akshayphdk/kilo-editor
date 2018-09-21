@@ -223,6 +223,19 @@ int editor_row_cx_to_rx(erow *row, int cx) {
   return rx;
 }
 
+int editor_row_rx_to_cx(erow *row, int rx) {
+  int cur_rx = 0;
+  int cx;
+  for (cx = 0; cx<row->size; cx++) {
+    if (row->chars[cx] == '\t')
+      cur_rx += (KILO_TAB_STOP-1)-(cur_rx%KILO_TAB_STOP);
+    cur_rx++;
+    if (cur_rx > rx)
+      return cx;
+  }
+  return cx;
+}
+
 void editor_update_row(erow *row){
 
   int tabs = 0;
@@ -428,6 +441,25 @@ void editor_save() {
   editor_set_statusmsg("Unable to save. I/O ErrorL %s", strerror(errno));
 }
 
+/*-----SEARCH-------------------------------------------------*/
+
+void editor_search(){
+  char *query = editor_prompt("Search: %s (ESC to Cancel)");
+  if (query == NULL) return;
+
+  for(int i=0; i<CONF.num_rows; i++) {
+    erow *row = &CONF.row[i];
+    char *match = strstr(row->render, query);
+    if (match) {
+      CONF.cy = i;
+      CONF.cx = editor_row_rx_to_cx(row, match-row->render);
+      CONF.row_offset = CONF.num_rows;
+      break;
+    }
+  }
+  free(query);
+}
+
 /*-----INPUT--------------------------------------------------*/
 
 char *editor_prompt(char *prompt) {
@@ -540,6 +572,10 @@ void editor_process_keypress(){
     case END_KEY:
       if (CONF.cy < CONF.num_rows)
         CONF.cx = CONF.row[CONF.cy].size;
+      break;
+
+    case CTRL_KEY('f'):
+      editor_search();
       break;
 
     case BACKSPACE:
@@ -737,7 +773,7 @@ int main(int argc, char *argv[]) {
     editor_open(argv[1]);
   }
 
-  editor_set_statusmsg("HELP: Ctrl-S = Save | Ctrl-Q = Quit");
+  editor_set_statusmsg("HELP: Ctrl-S = Save | Ctrl-Q = Quit | Ctrl-F = Find");
 
   while (1) {
     editor_refresh_screen();
