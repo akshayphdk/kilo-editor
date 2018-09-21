@@ -88,7 +88,7 @@ void abuf_free(struct abuf* ab){
 
 void editor_set_statusmsg(const char *fmt, ...);
 void editor_refresh_screen();
-char *editor_prompt(char *prompt);
+char *editor_prompt(char *prompt, void (*callback)(char *, int));
 
 /*-----TERMINAL-----------------------------------------------*/
 
@@ -415,7 +415,7 @@ void editor_open(char *filename) {
 
 void editor_save() {
   if (CONF.filename == NULL) {
-    CONF.filename = editor_prompt("Save as: %s");
+    CONF.filename = editor_prompt("Save as: %s (ESC to cancel)", NULL);
     if (CONF.filename == NULL) {
       editor_set_statusmsg("Save aborted");
       return;
@@ -438,16 +438,17 @@ void editor_save() {
     close(fd);
   }
   free(buf);
-  editor_set_statusmsg("Unable to save. I/O ErrorL %s", strerror(errno));
+  editor_set_statusmsg("Unable to save. I/O Error %s", strerror(errno));
 }
 
 /*-----SEARCH-------------------------------------------------*/
 
-void editor_search(){
-  char *query = editor_prompt("Search: %s (ESC to Cancel)");
-  if (query == NULL) return;
-
-  for(int i=0; i<CONF.num_rows; i++) {
+void editor_search_callback(char *query, int key){
+  if (key == '\r' || key == '\x1B') {
+    return;
+  }
+  int i;
+  for (i=0; i<CONF.num_rows; i++) {
     erow *row = &CONF.row[i];
     char *match = strstr(row->render, query);
     if (match) {
@@ -457,12 +458,17 @@ void editor_search(){
       break;
     }
   }
-  free(query);
+}
+
+void editor_search(){
+  char *query = editor_prompt("Search: %s (ESC to Cancel)", editor_search_callback);
+  if (query)
+    free(query);
 }
 
 /*-----INPUT--------------------------------------------------*/
 
-char *editor_prompt(char *prompt) {
+char *editor_prompt(char *prompt, void (*callback)(char *, int)) {
   size_t bufsize = 128;
   char *buf = malloc(bufsize);
 
@@ -480,12 +486,14 @@ char *editor_prompt(char *prompt) {
     }
     else if (c == '\x1B') {
       editor_set_statusmsg("");
+      if (callback) callback(buf, c);
       free(buf);
       return NULL;
     }
     else if (c == '\r') {
       if (buflen != 0) {
         editor_set_statusmsg("");
+        if (callback) callback(buf, c);
         return buf;
       }
     }
@@ -497,6 +505,8 @@ char *editor_prompt(char *prompt) {
       buf[buflen++] = c;
       buf[buflen] = '\0';
     }
+    
+    if (callback) callback(buf, c);
   }
 }
 
