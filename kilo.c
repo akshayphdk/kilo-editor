@@ -444,15 +444,44 @@ void editor_save() {
 /*-----SEARCH-------------------------------------------------*/
 
 void editor_search_callback(char *query, int key){
+
+  static int last_match = -1;
+  static int direction = 1;
+
   if (key == '\r' || key == '\x1B') {
+    last_match = -1;
+    direction = 1;
     return;
   }
+  else if (key == ARROW_RIGHT || key == ARROW_DOWN) {
+    direction = 1;
+  }
+  else if (key == ARROW_LEFT || key == ARROW_UP) {
+    direction = -1;
+  }
+  else {
+    last_match = -1;
+    direction = 1;
+  }
+
+  if (last_match == -1)
+    direction = 1;
+  int current = last_match;
+
   int i;
   for (i=0; i<CONF.num_rows; i++) {
-    erow *row = &CONF.row[i];
+
+    current += direction;
+    if (current == -1)
+      current = CONF.num_rows - 1;
+    else if (current == CONF.num_rows)
+      current = 0;
+
+    erow *row = &CONF.row[current];
     char *match = strstr(row->render, query);
     if (match) {
-      CONF.cy = i;
+      last_match = current;
+      CONF.cy = current;
       CONF.cx = editor_row_rx_to_cx(row, match-row->render);
       CONF.row_offset = CONF.num_rows;
       break;
@@ -466,7 +495,7 @@ void editor_search(){
   int saved_coloff = CONF.col_offset;
   int saved_rowoff = CONF.row_offset;
 
-  char *query = editor_prompt("Search: %s (ESC to Cancel)", editor_search_callback);
+  char *query = editor_prompt("Search: %s (ESC/Enter to Cancel | Arrows to search forward or backwards)", editor_search_callback);
   if (query)
     free(query);
   else {
